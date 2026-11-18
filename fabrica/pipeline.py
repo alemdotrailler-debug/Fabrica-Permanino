@@ -31,8 +31,22 @@ def carregar(caminho, nome):
 
 
 def frases(p):
-    partes = re.split(r'(?<=[\.\?!])\s+(?=[A-ZÁÉÍÓÚÑ¿¡])', p)
+    partes = re.split(r'(?<=[\.\?!»])\s+(?=[A-ZÁÉÍÓÚÑ¿¡\[\{])', p)
     return [x.strip() for x in partes if x.strip()]
+
+
+RE_FALA = re.compile(r'^\s*\[([a-zA-Z0-9_áéíóúñ]+)\]\s*')
+RE_EVENTO = re.compile(r'\{([A-ZÁÉÍÓÚÑ¡!¿?\.\- ]+)\}\s*')
+
+
+def analisar(txt):
+    """'[capitan] {CRASH} ¿Qué tienes?' -> ('capitan', ['CRASH'], '¿Qué tienes?')"""
+    m = RE_FALA.match(txt)
+    quem = m.group(1) if m else None
+    if m:
+        txt = txt[m.end():]
+    eventos = RE_EVENTO.findall(txt)
+    return quem, eventos, RE_EVENTO.sub("", txt).strip()
 
 
 def linhas(CH):
@@ -58,8 +72,10 @@ def narrar(R, L, pasta):
         f = wav_de(pasta, l[3])
         if os.path.exists(f):
             continue
-        texto = l[3].replace("…", ",").replace(":", ",")
-        a, sr = k.create(texto, voice=getattr(R, "VOZ", "em_alex"), speed=getattr(R, "VELOCIDADE", 0.9), lang="es")
+        quem, _, limpo = analisar(l[3])
+        texto = limpo.replace("…", ",").replace(":", ",").replace("«", "").replace("»", "")
+        voz = getattr(R, "VOZES", {}).get(quem, getattr(R, "VOZ", "em_alex")) if quem else getattr(R, "VOZ", "em_alex")
+        a, sr = k.create(texto, voice=voz, speed=getattr(R, "VELOCIDADE", 0.9), lang="es")
         sf.write(f, a, sr)
         if i % 20 == 0:
             log(f"narração {i+1}/{len(L)}")
@@ -105,10 +121,14 @@ def renderizar(R, C, pasta, W, H, caminho_cenas=None):
     log("cenas/cartões renderizados:", len(tudo))
     if animado:
         from fabrica import animacao
-        _, segs, _, _, _ = linha_do_tempo(R, linhas(R.CH), pasta, W > H)
-        pedidos = [(p[4], p[5]) for p in plano_cortes(R, C, segs, pasta) if p[4] is not None]
+        _, segs, _, _, _, falas, _ = linha_do_tempo(R, linhas(R.CH), pasta, W > H)
+        pl = plano_cortes(R, C, segs, pasta, 0, falas)
+        pedidos = [(p[4], p[5]) for p in pl if p[4] is not None and "__fala" not in p[0]]
         animacao.render_loops(caminho_cenas, RAIZ, pasta, pedidos, getattr(C, "LOOP", 3.0))
-        log("loops animados (todos diferentes):", len(pedidos))
+        diretos = [(p[4], p[5], p[1], p[2], p[0]) for p in pl if p[4] is not None and "__fala" in p[0]]
+        if diretos:
+            animacao.render_falas(caminho_cenas, RAIZ, pasta, diretos, envelopes(falas), getattr(C, "LOOP", 3.0))
+        log("loops animados (todos diferentes):", len(pedidos), "| cortes com fala sincronizada:", len(diretos))
 
 
 # ---------------- 3. montagem ----------------
@@ -126,13 +146,49 @@ MAIOR = [[130.8, 164.8, 196], [98, 123.5, 146.8], [110, 130.8, 164.8], [87.3, 11
 from fabrica.animacao import dividir as animacao_dividir, MODOS as ANIM_MODOS
 
 
+def envelopes(falas):
+    """Para cada fala: (início, fim, personagem, nível da voz por quadro de 24 fps)."""
+    out = []
+    for (f0, f1, quem, wav) in falas:
+        a, _ = sf.read(wav)
+        n = max(1, int(len(a) / SR * FPS))
+        e = np.array([np.sqrt(np.mean(a[int(i * SR / FPS):int((i + 1) * SR / FPS)] ** 2) + 1e-12) for i in range(n)])
+        out.append((f0, f1, quem, (e / max(1e-6, e.max())).tolist()))
+    return out
+
+
+def ass_karaoke(s0, s1, tx, a, d):
+    """Legenda palavra por palavra: falada em branco e maior, já ditas em amarelo, próximas invisíveis."""
+    ws = tx.split()
+    if not ws:
+        return ""
+    tot = sum(len(w) for w in ws); acc = 0; out = ""
+    for i, w in enumerate(ws):
+        w0 = s0 + (s1 - s0) * acc / tot; acc += len(w); w1 = s0 + (s1 - s0) * acc / tot
+        if i == len(ws) - 1:
+            w1 = s1 + 0.25
+        x0, x1 = max(0, w0 - a), min(d, w1 - a)
+        if x1 <= 0 or x0 >= d:
+            continue
+        partes = []
+        for j, ww in enumerate(ws):
+            if j < i:
+                partes.append(ww)
+            elif j == i:
+                partes.append("{\\c&HFFFFFF&\\fscx112\\fscy112}" + ww + "{\\r}")
+            else:
+                partes.append("{\\alpha&HFF&}" + ww + "{\\r}")
+        out += f"Dialogue: 0,{ts(x0)},{ts(x1)},Sub,,0,0,0,,{' '.join(partes)}\n"
+    return out
+
+
 def ts(x):
     return f"{int(x//3600)}:{int(x%3600//60):02d}:{x%60:05.2f}"
 
 
 def linha_do_tempo(R, L, pasta, longo):
     CARD, GAP, EXTRA, FIM_CAP = 2.6, 0.38, 0.35, 0.9
-    audio, segs, subs, caps = [], [], [], []
+    audio, segs, subs, caps, falas, eventos = [], [], [], [], [], []
     st = {"t": 0.0, "cena": None, "ini": 0.0}
 
     def pausa(n):
@@ -162,15 +218,20 @@ def linha_do_tempo(R, L, pasta, longo):
             fecha(st["t"]); st["cena"], st["ini"] = sc, st["t"]
         a, sr = sf.read(wav_de(pasta, txt))
         d = len(a) / SR
-        subs.append((st["t"], st["t"] + d, txt))
+        quem, evs, limpo = analisar(txt)
+        subs.append((st["t"], st["t"] + d, limpo))
+        if quem:
+            falas.append((st["t"], st["t"] + d, quem, wav_de(pasta, txt)))
+        for e in evs:
+            eventos.append((st["t"], e))
         audio.append(a); st["t"] += d
         pausa(GAP + (EXTRA if len(txt.split()) <= 6 else 0))
     pausa(1.5)
     fecha(st["t"])
-    return audio, segs, subs, caps, st["t"]
+    return audio, segs, subs, caps, st["t"], falas, eventos
 
 
-def plano_cortes(R, C, segs, pasta, v0=0):
+def plano_cortes(R, C, segs, pasta, v0=0, falas=()):
     """Divide cada cena em cortes de ~CORTE_SEG s. Cada corte ganha uma variante única (desenho diferente)."""
     animado = bool(C is not None and getattr(C, "ANIMADO", False))
     pecas, k_cam, cont = [], 0, {}
@@ -183,13 +244,13 @@ def plano_cortes(R, C, segs, pasta, v0=0):
             v = cont.get(nome, v0); cont[nome] = v + 1
             modo = "geral" if i == 0 else ANIM_MODOS[k_cam % len(ANIM_MODOS)]
             k_cam += 1
-            pecas.append((os.path.join(pasta, "loops", f"{nome}__{v}.mp4"), x0, x1, modo, nome, v))
+            fala = any(f0 < x1 and f1 > x0 for (f0, f1, _q, _w) in falas)
+            arq = f"{nome}__{v}__fala{int(x0 * 100)}_{int(x1 * 100)}.mp4" if fala else f"{nome}__{v}.mp4"
+            pecas.append((os.path.join(pasta, "loops", arq), x0, x1, modo, nome, v))
     return pecas
 
 
-def montar(R, L, pasta, W, H, saida_mp4, C=None, v0=0):
-    longo = W > H
-    audio, segs, subs, caps, total = linha_do_tempo(R, L, pasta, longo)
+def mixar_audio(R, audio, segs, caps, total, eventos, pasta):
     voz = np.concatenate(audio)
 
     humor = getattr(R, "MUSICA", ["menor"] * len(R.CH))
@@ -204,9 +265,28 @@ def montar(R, L, pasta, W, H, saida_mp4, C=None, v0=0):
     musica = np.pad(musica, (0, max(0, len(voz) - len(musica))))[:len(voz)]
     musica = musica / max(1e-6, np.abs(musica).max()) * 0.075
     mix = voz / max(1e-6, np.abs(voz).max()) * 0.9 + musica
+    rng = np.random.RandomState(7)
+    tt = np.arange(int(0.5 * SR)) / SR
+    whoosh = rng.randn(len(tt)) * np.exp(-((tt - 0.12) / 0.06) ** 2) * 0.18
+    boom = np.convolve(rng.randn(len(tt)), np.ones(60) / 60, "same") * np.exp(-tt * 5) * 2.2
+    for (png, a0, b0) in segs[1:]:
+        if "card" not in os.path.basename(png) and getattr(R, "EFEITOS", True):
+            i0 = max(0, int((a0 - 0.12) * SR)); seg = whoosh[:max(0, min(len(whoosh), len(mix) - i0))]
+            mix[i0:i0 + len(seg)] += seg
+    for (te, _e) in eventos:
+        i0 = int(te * SR); seg = boom[:max(0, min(len(boom), len(mix) - i0))]
+        mix[i0:i0 + len(seg)] += seg
+    mix = mix / max(1.0, np.abs(mix).max() / 0.98)
     f = int(2 * SR); mix[-f:] *= np.linspace(1, 0, f)
     wav_final = os.path.join(pasta, "audio.wav")
     sf.write(wav_final, mix, SR)
+    return wav_final
+
+
+def montar(R, L, pasta, W, H, saida_mp4, C=None, v0=0):
+    longo = W > H
+    audio, segs, subs, caps, total, falas, eventos = linha_do_tempo(R, L, pasta, longo)
+    wav_final = mixar_audio(R, audio, segs, caps, total, eventos, pasta)
 
     fs, mv, ml = (50, 56, 160) if longo else (74, 520, 90)
     cab = f"""[Script Info]
@@ -223,14 +303,19 @@ Style: Sub,Inter Display,{fs},{getattr(R, "COR_LEGENDA", "&H0032E1FF")},&H00FFFF
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     sd = os.path.join(pasta, "seg"); os.makedirs(sd, exist_ok=True)
-    pecas = plano_cortes(R, C, segs, pasta, v0)
+    pecas = plano_cortes(R, C, segs, pasta, v0, falas)
+    karaoke = getattr(R, "LEGENDA", "karaoke") == "karaoke"
     jobs = []
+    vistos = set()
     for k, (src, a, b, modo, nome_cena, var) in enumerate(pecas):
         d = b - a
         ass = cab
         for (s0, s1, tx) in subs:
             if s1 > a and s0 < b:
-                ass += f"Dialogue: 0,{ts(max(0, s0-a))},{ts(min(d, s1-a+0.2))},Sub,,0,0,0,,{tx}\n"
+                if karaoke:
+                    ass += ass_karaoke(s0, s1, tx, a, d)
+                else:
+                    ass += f"Dialogue: 0,{ts(max(0, s0-a))},{ts(min(d, s1-a+0.2))},Sub,,0,0,0,,{tx}\n"
         af = os.path.join(sd, f"{k:03d}.ass"); open(af, "w").write(ass)
         n = round(b * FPS) - round(a * FPS)
         saida = os.path.join(sd, f"{k:03d}.mp4")
@@ -245,9 +330,24 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         else:
             from fabrica import animacao
             foco = getattr(C, "FOCO", {}).get(nome_cena, (W / 2, H / 2))
-            cam = animacao.filtro_camera(modo, d, foco, W, H) if W > H else animacao.filtro_camera_vertical(modo, d, foco, W, H)
-            vf = f"{cam},subtitles={af},format=yuv420p"
-            entrada = ["-stream_loop", "-1", "-i", src]
+            nova_cena = nome_cena not in vistos and k > 0
+            vistos.add(nome_cena)
+            if nova_cena and modo == "geral" and getattr(R, "EFEITOS", True):
+                z = f"max(1.001,1+0.14*max(0,1-t/0.28)+0.05*t/{d:.3f})"
+                cam = (f"scale=w='trunc({W}*{z}/2)*2':h='trunc({H}*{z}/2)*2':eval=frame,crop={W}:{H},"
+                       f"gblur=sigma=22:enable='lt(t,0.10)'")
+            else:
+                cam = animacao.filtro_camera(modo, d, foco, W, H) if W > H else animacao.filtro_camera_vertical(modo, d, foco, W, H)
+            extra = ""
+            for (te, _e) in eventos:
+                if a <= te < b:
+                    L0 = te - a
+                    extra += (f",scale={int(W*1.04)//2*2}:{int(H*1.04)//2*2},crop={W}:{H}:x='{int(W*0.02)}+30*sin(t*95)*between(t,{L0:.2f},{L0+0.6:.2f})'"
+                              f":y='{int(H*0.02)}+18*cos(t*80)*between(t,{L0:.2f},{L0+0.6:.2f})',"
+                              f"drawbox=x=0:y=0:w=iw:h=ih:color=white@0.55:t=fill:enable='between(t,{L0:.2f},{L0+0.12:.2f})'")
+                    break
+            vf = f"{cam}{extra},subtitles={af},format=yuv420p"
+            entrada = ["-i", src] if "__fala" in src else ["-stream_loop", "-1", "-i", src]
         jobs.append(["ffmpeg", "-y", "-loglevel", "error", *entrada, "-frames:v", str(n), "-vf", vf, "-r", str(FPS),
                      "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-threads", "1", saida])
     segs = pecas
@@ -306,7 +406,11 @@ def main(pasta_video, enviar=True):
     narrar(R, L, trabalho)
     renderizar(R, C, trabalho, W, H, os.path.join(pasta_video, "cenas.py"))
     mp4 = os.path.join(trabalho, f"{R.SLUG}.mp4")
-    total, caps = montar(R, L, trabalho, W, H, mp4, C)
+    if getattr(R, "TEMPLATE", "niveles") == "gibi":
+        from fabrica.gibi import montar_gibi
+        total, caps = montar_gibi(R, C, L, trabalho, mp4)
+    else:
+        total, caps = montar(R, L, trabalho, W, H, mp4, C)
     for v in getattr(C, "THUMBS", "AB"):
         t = os.path.join(trabalho, f"thumb_{v}.jpg")
         if os.path.exists(t):

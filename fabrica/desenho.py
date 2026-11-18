@@ -290,8 +290,11 @@ def person(hair="short", hair_col=HAIR, beard="none", beard_col=None, tunic="#8b
     s += f'<rect x="-148" y="-520" width="296" height="34" rx="8" fill="{belt}" stroke="{OL}" stroke-width="{SW}"/>'
     hands = []
     for side, mode in zip((-1, 1), arms):
-        ang = {"down": 12, "up": 160, "flex": 100, "push": 130, "forward": 70, "pray": 28, "face": 150, "dance": 145, "point": 95, "harp": 40, "sling": 175, "hold": 60}[mode]
-        bent = {"down": 0, "up": 0, "flex": 70, "push": 20, "forward": 0, "pray": -55, "face": 160, "dance": -40, "point": 0, "harp": -70, "sling": 0, "hold": -40}[mode]
+        if isinstance(mode, tuple):          # braço animado: (ângulo, dobra) em graus
+            ang, bent = mode
+        else:
+            ang = {"down": 12, "up": 160, "flex": 100, "push": 130, "forward": 70, "pray": 28, "face": 150, "dance": 145, "point": 95, "harp": 40, "sling": 175, "hold": 60}[mode]
+            bent = {"down": 0, "up": 0, "flex": 70, "push": 20, "forward": 0, "pray": -55, "face": 160, "dance": -40, "point": 0, "harp": -70, "sling": 0, "hold": -40}[mode]
         a, hp = arm(side * 145, -680, ang * side, bent=bent * side)
         s += a
         hands.append(hp)

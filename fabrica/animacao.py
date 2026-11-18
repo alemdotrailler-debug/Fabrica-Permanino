@@ -120,3 +120,52 @@ def filtro_camera_vertical(modo, d, foco, W=1080, H=1920):
     x0 = min(max(cx - folga / 2, 0), sw - W - folga)
     x = f"{x0:.0f}+{folga}*t/{d:.3f}" if modo == "pan_d" else f"{x0 + folga:.0f}-{folga}*t/{d:.3f}"
     return f"scale={sw}:{sh},crop={W}:{H}:x='clip({x},0,{sw-W})':y={cy:.0f}"
+
+
+# ---------- cortes com fala: renderizados quadro a quadro para a boca acompanhar o áudio ----------
+def _render_falas_lote(args):
+    itens, caminho_cenas, raiz, pasta, envs, loop = args
+    import sys, importlib.util
+    sys.path.insert(0, raiz)
+    spec = importlib.util.spec_from_file_location("cenas_fala", caminho_cenas)
+    C = importlib.util.module_from_spec(spec); spec.loader.exec_module(C)
+    S = C.scenes()
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        pg = b.new_page(viewport={"width": 1920, "height": 1080}, device_scale_factor=ESCALA)
+        for (nome, var, a, bb, mp4) in itens:
+            if os.path.exists(mp4):
+                continue
+            d = mp4[:-4]; os.makedirs(d, exist_ok=True)
+            if hasattr(C, "VAR"):
+                C.VAR["v"] = var
+            n = int(round((bb - a) * FPS_LOOP)) + 2
+            for i in range(n):
+                tg = a + i / FPS_LOOP
+                fala, boca = None, 0.0
+                for (f0, f1, quem, env) in envs:
+                    if f0 <= tg < f1:
+                        fala = quem; boca = env[min(len(env) - 1, int((tg - f0) * FPS_LOOP))]
+                if hasattr(C, "VAR"):
+                    C.VAR["fala"], C.VAR["boca"] = fala, boca
+                pg.set_content(f'<html><body style="margin:0;background:#000">{S[nome](tg % loop)}</body></html>')
+                pg.screenshot(path=os.path.join(d, f"{i:04d}.jpg"), type="jpeg", quality=90)
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(FPS_LOOP), "-i", os.path.join(d, "%04d.jpg"),
+                            "-c:v", "libx264", "-preset", "fast", "-crf", "17", "-pix_fmt", "yuv420p", mp4], check=True)
+            for x in os.listdir(d):
+                os.remove(os.path.join(d, x))
+            os.rmdir(d)
+            if hasattr(C, "VAR"):
+                C.VAR["fala"] = None
+            print("[fábrica] corte com fala pronto:", os.path.basename(mp4), flush=True)
+        b.close()
+
+
+def render_falas(caminho_cenas, raiz, pasta, itens, envs, loop):
+    """itens: (cena, variante, início, fim, mp4)."""
+    os.makedirs(os.path.join(pasta, "loops"), exist_ok=True)
+    nproc = max(1, os.cpu_count() or 2)
+    lotes = [itens[i::nproc] for i in range(nproc)]
+    with Pool(nproc) as pool:
+        pool.map(_render_falas_lote, [(l, caminho_cenas, raiz, pasta, envs, loop) for l in lotes if l])
