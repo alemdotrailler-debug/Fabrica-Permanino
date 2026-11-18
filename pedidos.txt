@@ -1,3 +1,4 @@
 # Um pedido por linha. "nome" gera o vídeo longo; "nome:shorts" gera só os Shorts.
 elias
 elias:shorts
+# v2
