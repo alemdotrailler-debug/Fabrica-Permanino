@@ -105,9 +105,10 @@ def renderizar(R, C, pasta, W, H, caminho_cenas=None):
     log("cenas/cartões renderizados:", len(tudo))
     if animado:
         from fabrica import animacao
-        usadas = sorted({l[2] for l in linhas(R.CH)})
-        animacao.render_loops(caminho_cenas, RAIZ, pasta, usadas, getattr(C, "LOOP", 3.0))
-        log("loops animados:", len(usadas))
+        _, segs, _, _, _ = linha_do_tempo(R, linhas(R.CH), pasta, W > H)
+        pedidos = [(p[4], p[5]) for p in plano_cortes(R, C, segs, pasta) if p[4] is not None]
+        animacao.render_loops(caminho_cenas, RAIZ, pasta, pedidos, getattr(C, "LOOP", 3.0))
+        log("loops animados (todos diferentes):", len(pedidos))
 
 
 # ---------------- 3. montagem ----------------
@@ -129,8 +130,7 @@ def ts(x):
     return f"{int(x//3600)}:{int(x%3600//60):02d}:{x%60:05.2f}"
 
 
-def montar(R, L, pasta, W, H, saida_mp4, C=None):
-    longo = W > H
+def linha_do_tempo(R, L, pasta, longo):
     CARD, GAP, EXTRA, FIM_CAP = 2.6, 0.38, 0.35, 0.9
     audio, segs, subs, caps = [], [], [], []
     st = {"t": 0.0, "cena": None, "ini": 0.0}
@@ -167,7 +167,29 @@ def montar(R, L, pasta, W, H, saida_mp4, C=None):
         pausa(GAP + (EXTRA if len(txt.split()) <= 6 else 0))
     pausa(1.5)
     fecha(st["t"])
-    total = st["t"]
+    return audio, segs, subs, caps, st["t"]
+
+
+def plano_cortes(R, C, segs, pasta):
+    """Divide cada cena em cortes de ~CORTE_SEG s. Cada corte ganha uma variante única (desenho diferente)."""
+    animado = bool(C is not None and getattr(C, "ANIMADO", False))
+    pecas, k_cam, cont = [], 0, {}
+    for (png, a, b) in segs:
+        if "card" in os.path.basename(png) or not animado:
+            pecas.append((png, a, b, None, None, None))
+            continue
+        nome = os.path.splitext(os.path.basename(png))[0]
+        for i, (x0, x1) in enumerate(animacao_dividir(a, b, getattr(R, "CORTE_SEG", 5.0))):
+            v = cont.get(nome, 0); cont[nome] = v + 1
+            modo = "geral" if i == 0 else ANIM_MODOS[k_cam % len(ANIM_MODOS)]
+            k_cam += 1
+            pecas.append((os.path.join(pasta, "loops", f"{nome}__{v}.mp4"), x0, x1, modo, nome, v))
+    return pecas
+
+
+def montar(R, L, pasta, W, H, saida_mp4, C=None):
+    longo = W > H
+    audio, segs, subs, caps, total = linha_do_tempo(R, L, pasta, longo)
     voz = np.concatenate(audio)
 
     humor = getattr(R, "MUSICA", ["menor"] * len(R.CH))
@@ -201,20 +223,9 @@ Style: Sub,Inter Display,{fs},{getattr(R, "COR_LEGENDA", "&H0032E1FF")},&H00FFFF
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     sd = os.path.join(pasta, "seg"); os.makedirs(sd, exist_ok=True)
-    animado = bool(C is not None and getattr(C, "ANIMADO", False))
-    pecas = []   # (fonte, a, b, modo)
-    k_cam = 0
-    for (png, a, b) in segs:
-        if "card" in os.path.basename(png) or not animado:
-            pecas.append((png, a, b, None))
-            continue
-        nome = os.path.splitext(os.path.basename(png))[0]
-        for i, (x0, x1) in enumerate(animacao_dividir(a, b, getattr(R, "CORTE_SEG", 5.0))):
-            modo = "geral" if i == 0 else ANIM_MODOS[k_cam % len(ANIM_MODOS)]
-            k_cam += 1
-            pecas.append((os.path.join(pasta, "loops", f"{nome}.mp4"), x0, x1, modo))
+    pecas = plano_cortes(R, C, segs, pasta)
     jobs = []
-    for k, (src, a, b, modo) in enumerate(pecas):
+    for k, (src, a, b, modo, nome_cena, var) in enumerate(pecas):
         d = b - a
         ass = cab
         for (s0, s1, tx) in subs:
@@ -233,8 +244,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             entrada = ["-loop", "1", "-framerate", str(FPS), "-i", src]
         else:
             from fabrica import animacao
-            nome = os.path.splitext(os.path.basename(src))[0]
-            foco = getattr(C, "FOCO", {}).get(nome, (W / 2, H / 2))
+            foco = getattr(C, "FOCO", {}).get(nome_cena, (W / 2, H / 2))
             vf = f"{animacao.filtro_camera(modo, d, foco, W, H)},subtitles={af},format=yuv420p"
             entrada = ["-stream_loop", "-1", "-i", src]
         jobs.append(["ffmpeg", "-y", "-loglevel", "error", *entrada, "-frames:v", str(n), "-vf", vf, "-r", str(FPS),

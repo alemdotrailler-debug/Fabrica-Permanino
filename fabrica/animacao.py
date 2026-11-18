@@ -40,12 +40,15 @@ def _render_lote(args):
     with sync_playwright() as p:
         b = p.chromium.launch()
         pg = b.new_page(viewport={"width": 1920, "height": 1080}, device_scale_factor=ESCALA)
-        for nome in nomes:
-            d = os.path.join(pasta, "loops", nome); os.makedirs(d, exist_ok=True)
-            mp4 = os.path.join(pasta, "loops", f"{nome}.mp4")
+        for nome, var in nomes:
+            chave = f"{nome}__{var}"
+            d = os.path.join(pasta, "loops", chave); os.makedirs(d, exist_ok=True)
+            mp4 = os.path.join(pasta, "loops", f"{chave}.mp4")
             if os.path.exists(mp4):
                 continue
             f = S[nome]
+            if hasattr(C, "VAR"):
+                C.VAR["v"] = var
             for i in range(n):
                 pg.set_content(f'<html><body style="margin:0;background:#000">{f(i / FPS_LOOP)}</body></html>')
                 pg.screenshot(path=os.path.join(d, f"{i:03d}.jpg"), type="jpeg", quality=90)
@@ -54,11 +57,12 @@ def _render_lote(args):
             for x in os.listdir(d):
                 os.remove(os.path.join(d, x))
             os.rmdir(d)
-            print("[fábrica] loop pronto:", nome, flush=True)
+            print("[fábrica] loop pronto:", chave, flush=True)
         b.close()
 
 
 def render_loops(caminho_cenas, raiz, pasta, nomes, loop):
+    """nomes: lista de (cena, variante)."""
     os.makedirs(os.path.join(pasta, "loops"), exist_ok=True)
     nproc = max(1, os.cpu_count() or 2)
     lotes = [nomes[i::nproc] for i in range(nproc)]

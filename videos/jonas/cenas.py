@@ -12,9 +12,38 @@ MARINHEIRO = [dict(hair="short", hair_col="#2a1a10", beard="yes", beard_col="#2a
 REI = dict(hair="curly", hair_col="#1a1410", beard="yes", beard_col="#1a1410", tunic="#c9a14a", robe="#5a1a6a", crown=True, belt="#e8c27a")
 SACO = "#8a7a5a"
 
+# ---- variantes: cada corte do vídeo usa um desenho diferente (VAR["v"] muda a cada corte) ----
+VAR = {"v": 0}
+POSES = {"down": ["down", "flex", "hold", "point"], "pray": ["pray", "face", "up"], "face": ["face", "pray", "down"],
+         "up": ["up", "flex", "pray"], "forward": ["forward", "point", "up"], "point": ["point", "forward", "flex"],
+         "flex": ["flex", "down", "point"], "hold": ["hold", "down", "flex"]}
+DESLOC = [0, -160, 150, -90, 100, -220, 210, -40]
+ESCALAS = [1.0, 1.07, 0.94, 1.12, 0.97, 1.04]
 
-def pessoa(t, x, y, s, flip=False, base=None, piscar=0.6, amp=0.012, balanco=0.0, **kw):
+
+def V(*opcoes):
+    """Escolhe uma opção conforme a variante do corte."""
+    return opcoes[VAR["v"] % len(opcoes)]
+
+
+def luz_variante():
+    v = VAR["v"] % 5
+    return ["", '<rect width="1920" height="1080" fill="#ff9a40" opacity="0.10"/>',
+            '<rect width="1920" height="1080" fill="#4060c0" opacity="0.10"/>',
+            '<defs><radialGradient id="vg"><stop offset="0.55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.55"/></radialGradient></defs><rect width="1920" height="1080" fill="url(#vg)"/>',
+            '<rect width="1920" height="1080" fill="#ffe8a0" opacity="0.08"/>'][v]
+
+
+def pessoa(t, x, y, s, flip=False, base=None, piscar=0.6, amp=0.012, balanco=0.0, fixo=False, **kw):
     kw = {**(base or {}), **kw}
+    v = VAR["v"]
+    if v and not fixo:
+        semente = int(x) % 5
+        braços = kw.get("arms", ("down", "down"))
+        kw["arms"] = tuple(POSES.get(a, [a])[(v + semente + i) % len(POSES.get(a, [a]))] for i, a in enumerate(braços))
+        x = x + DESLOC[(v + semente) % len(DESLOC)] * s
+        s = s * ESCALAS[v % len(ESCALAS)]
+        y = y + (s - s / ESCALAS[v % len(ESCALAS)]) * 40
     if kw.get("eyes", "open") in ("open", "side", "up") and piscando(t, LOOP, piscar):
         kw["eyes"] = "closed"
     c, _ = person(**kw)
@@ -261,7 +290,7 @@ def interior_peixe(t):
 
 
 def frame_(inner):
-    return frame(inner)
+    return frame(inner + luz_variante())
 
 
 # ---------------- cenas ----------------
@@ -273,7 +302,7 @@ def j0(t):
 
 
 def j0b(t):
-    return frame_(ceu("#1a2030", "#3a4a60") + nuvens_tempestade(t) + mar_bravo(t, 700) + navio(t, 960, 700, 0.9, 7) + chuva(t) + raio(t))
+    return frame_(ceu("#1a2030", "#3a4a60") + nuvens_tempestade(t) + mar_bravo(t, V(700, 640, 760)) + navio(t, V(960, 620, 1300, 800), V(700, 650, 760), V(0.9, 1.15, 0.7), V(7, 10, 5)) + chuva(t) + raio(t))
 
 
 def j1a(t):
@@ -283,7 +312,7 @@ def j1a(t):
 
 def j1b(t):
     return frame_(ceu("#e08a4a", "#f5c890") + ninive() + "".join(
-        g(soldier(tunic="#7a2a2a", eyes="side", mouth="smirk", brows="angry", spear=True), x, 1020, 0.42) for x in (420, 640, 1280, 1500)))
+        g(soldier(tunic="#7a2a2a", eyes="side", mouth="smirk", brows="angry", spear=True), x, 1020, 0.42) for x in V((420, 640, 1280, 1500), (200, 1700), (520, 760, 1160, 1400), (900,))))
 
 
 def j1c(t):
@@ -308,11 +337,11 @@ def j2b(t):
 
 
 def j2c(t):
-    return frame_(ceu("#ff8a3d", "#ffd27a") + '<circle cx="1500" cy="560" r="130" fill="#fff1b8"/>' + mar_calmo(t, 680) + navio(t, 760, 690, 0.65, 2) + particulas(t, 12, "#fff"))
+    return frame_(ceu("#ff8a3d", "#ffd27a") + '<circle cx="1500" cy="560" r="130" fill="#fff1b8"/>' + mar_calmo(t, 680) + navio(t, V(760, 1100, 460, 940), 690, V(0.65, 0.8, 0.5, 1.0), 2) + particulas(t, 12, "#fff"))
 
 
 def j3a(t):
-    return frame_(ceu("#141a26", "#2a3444") + nuvens_tempestade(t) + mar_bravo(t, 660) + navio(t, 960, 680, 1.0, 9) + chuva(t, 90) + raio(t, 1500, 0.9))
+    return frame_(ceu("#141a26", "#2a3444") + nuvens_tempestade(t) + mar_bravo(t, 660) + navio(t, V(960, 700, 1250, 1000), V(680, 640, 720), V(1.0, 1.25, 0.8, 1.4), V(9, 12, 7)) + chuva(t, V(90, 120, 60)) + raio(t, V(1500, 400, 1100), V(0.9, 0.3, 2.0)))
 
 
 def j3b(t):
@@ -334,8 +363,9 @@ def j3c(t):
     s += lanterna(t, 1300, 0)
     s += '<rect x="300" y="760" width="1100" height="120" rx="20" fill="#8a6a4a" stroke="#2a1a12" stroke-width="6"/>'
     dorme, _ = person(**{**JONAS, "eyes": "closed", "mouth": "smile", "arms": ("down", "down")})
-    s += f'<g transform="translate(1180,770) rotate(-90) scale(0.7)">{respirar(dorme, t, 0.02)}</g>'
-    s += zzz(t, 560, 600)
+    bx = V(0, -250, 200, -120)
+    s += f'<g transform="translate({1180 + bx},770) rotate(-90) scale({V(0.7, 0.8, 0.62, 0.75)})">{respirar(dorme, t, 0.02)}</g>'
+    s += zzz(t, 560 + bx, 600)
     s += f'<g transform="rotate({2 * onda(t, LOOP):.2f} 960 540)"><rect x="-100" y="-100" width="2120" height="1280" fill="none"/></g>'
     return frame_(f'<g transform="rotate({1.5 * onda(t, LOOP):.2f} 960 540)">{s}</g>')
 
@@ -387,7 +417,7 @@ def j4b(t):
     f = t / LOOP
     y = 200 + 700 * f
     caindo, _ = person(**{**JONAS, "eyes": "closed", "mouth": "shout", "brows": "sad", "arms": ("up", "up")})
-    s += f'<g transform="translate(980,{y:.0f}) rotate({180 * f:.0f}) scale(0.45)">{caindo}</g>'
+    s += f'<g transform="translate({V(980, 700, 1250)},{y:.0f}) rotate({V(180, -160, 220) * f:.0f}) scale({V(0.45, 0.55, 0.4)})">{caindo}</g>'
     s += mar_bravo(t, 760)
     if f > 0.75:
         k = (f - 0.75) / 0.25
@@ -397,7 +427,7 @@ def j4b(t):
 
 
 def j4c(t):
-    s = ceu("#8ac8f0", "#e8f6ff") + luz_ceu(t, 960, 0.12) + mar_calmo(t, 720) + navio(t, 960, 720, 0.85, 1.5)
+    s = ceu("#8ac8f0", "#e8f6ff") + luz_ceu(t, 960, 0.12) + mar_calmo(t, 720) + navio(t, V(960, 1250, 700), 720, V(0.85, 1.1, 0.7), 1.5)
     s += f'<path d="M940 420 q{20 * onda(t, LOOP):.0f} -80 0 -160 q{-20 * onda(t, LOOP):.0f} -80 0 -160" fill="none" stroke="#e8e8e8" stroke-width="20" opacity="0.6"/>'
     return frame_(s + particulas(t, 15, "#fff"))
 
@@ -406,7 +436,7 @@ def j5a(t):
     s = ceu("#0a2a4a", "#04101e") + luz_ceu(t, 700, 0.06)
     s += pessoa(t, 620, 520 + 20 * onda(t, LOOP), 0.42, base=JONAS, eyes="closed", mouth="sad", brows="sad", arms=("up", "up"), balanco=8)
     s += bolhas(t, 640, 260) + algas(t, 120, 1080, 6, 400, "#1f5a3a") + algas(t, 1600, 1080, 6, 360, "#1f5a3a")
-    s += peixe(t, 1450 - 60 * onda(t, LOOP), 640, 0.9, boca=0.6 + 0.3 * onda(t, LOOP))
+    s += peixe(t, V(1450, 1300, 1550) - 60 * onda(t, LOOP), V(640, 560, 720), V(0.9, 1.1, 0.8), boca=0.6 + 0.3 * onda(t, LOOP))
     return frame_(s)
 
 
@@ -429,10 +459,10 @@ def j5c(t):
 def j5d(t):
     s = ceu("#7ec8f0", "#e8f6ff") + '<circle cx="1600" cy="180" r="90" fill="#fff4c0"/>' + mar_calmo(t, 640)
     s += '<path d="M0 760 Q600 700 1200 760 T1920 740 V1080 H0 Z" fill="#f0d8a0" stroke="#2a1a12" stroke-width="5"/>'
-    s += peixe(t, 1450, 640, 0.6, boca=1.0)
+    s += peixe(t, V(1450, 1550, 1350), 640, V(0.6, 0.7, 0.55), boca=1.0)
     f = t / LOOP
     voa, _ = person(**{**JONAS, "eyes": "closed", "mouth": "shout", "brows": "sad", "arms": ("up", "up")})
-    x = 1180 - 520 * f; y = 600 - 260 * math.sin(math.pi * f) + 200 * f
+    x = V(1180, 1280, 1100) - 520 * f; y = 600 - V(260, 340, 200) * math.sin(math.pi * f) + 200 * f
     s += f'<g transform="translate({x:.0f},{y:.0f}) rotate({-200 * f:.0f}) scale(0.4)">{voa}</g>'
     return frame_(s)
 
@@ -447,7 +477,7 @@ def j6a(t):
 def j6b(t):
     s = ceu("#e8a060", "#fbe0a8") + ninive()
     passo = 6 * onda(t, LOOP / 3)
-    s += pessoa(t, 960, 1020 + passo, 0.32, base=JONAS, eyes="side", arms=("down", "down"), balanco=3)
+    s += pessoa(t, V(960, 600, 1300), 1020 + passo, 0.32, fixo=True, base=JONAS, eyes="side", arms=("down", "down"), balanco=3)
     s += '<rect x="0" y="1020" width="1920" height="60" fill="#c9a070"/>'
     return frame_(s)
 
@@ -485,13 +515,13 @@ def j6f(t):
 
 def j6g(t):
     s = bg_field(top="#d8c0a0", bot="#f0e0c8", sun=False)
-    s += boi(560, 960 + 5 * onda(t, LOOP), 0.9) + boi(1460, 990, 0.75, flip=True)
+    s += boi(V(560, 400, 760), 960 + 5 * onda(t, LOOP), V(0.9, 1.1, 0.8)) + boi(V(1460, 1600, 1300), 990, 0.75, flip=V(True, False))
     s += ovelha_saco(980, 1000 + 6 * onda(t, LOOP / 2), 0.9) + ovelha_saco(240, 1010, 0.7, True) + ovelha_saco(1760, 1010, 0.7)
     return frame_(s)
 
 
 def j6h(t):
-    s = ceu("#ffd8a0", "#fff4dc") + luz_ceu(t, 960, 0.25) + ninive("#e0c080")
+    s = ceu(V("#ffd8a0", "#ffc890", "#ffe0b0"), "#fff4dc") + luz_ceu(t, V(960, 600, 1300), 0.25) + g(ninive("#e0c080"), V(0, -200, 150), V(0, 60, -40), V(1, 1.15, 0.9))
     return frame_(s + particulas(t, 40))
 
 
@@ -522,7 +552,7 @@ def j7c(t):
 def j7d(t):
     s = ceu("#ffb070", "#ffe0b0") + '<rect x="0" y="820" width="1920" height="260" fill="#c9a070"/>'
     s += choca(760, 1000, 1.0) + calabacera(t, 980, 1000, 1.0, seca=True)
-    s += verme(t, 900, 880, 1.6)
+    s += verme(t, V(900, 820, 960), V(880, 860, 900), V(1.6, 2.0, 1.4))
     return frame_(s)
 
 
@@ -557,13 +587,13 @@ def j8c(t):
             f'<rect x="400" y="-290" width="60" height="580" rx="30" fill="#8a5a30" stroke="{OL}" stroke-width="6"/>'
             f'<text x="0" y="-40" font-family="Lora" font-weight="700" font-size="80" fill="#5a3a1a" text-anchor="middle">Jonás 4:11</text>'
             f'<text x="0" y="80" font-family="Lora" font-style="italic" font-size="120" fill="#5a3a1a" text-anchor="middle">¿…?</text>')
-    s += g(rolo, 960, 520 + 10 * onda(t, LOOP), 1)
+    s += g(rolo, V(960, 900, 1020), 520 + 10 * onda(t, LOOP), V(1, 1.15, 0.9))
     return frame_(s + particulas(t, 30))
 
 
 def j8d(t):
     s = ceu("#ffd8a0", "#fff4dc") + luz_ceu(t, 960, 0.2)
-    s += f'<text x="960" y="560" font-family="Lora" font-weight="700" font-size="{220 + 10 * onda(t, LOOP):.0f}" fill="#5a3a1a" text-anchor="middle" opacity="0.9">?</text>'
+    s += f'<text x="{V(960, 640, 1280)}" y="{V(560, 520, 600)}" font-family="Lora" font-weight="700" font-size="{V(220, 300, 180) + 10 * onda(t, LOOP):.0f}" fill="#5a3a1a" text-anchor="middle" opacity="0.9">?</text>'
     return frame_(s + particulas(t, 35))
 
 
@@ -577,7 +607,7 @@ def j9(t):
             f'<text x="0" y="160" font-family="Lora" font-size="50" fill="#f2d27a" text-anchor="middle">días</text>'
             f'<text x="0" y="250" font-family="Lora" font-style="italic" font-size="34" fill="#e8d6b0" text-anchor="middle">con los personajes que</text>'
             f'<text x="0" y="292" font-family="Lora" font-style="italic" font-size="34" fill="#e8d6b0" text-anchor="middle">cambiaron la historia de la fe</text>')
-    s = bg_heaven() + f'<g transform="translate(620,{500 + 12 * onda(t, LOOP):.0f}) rotate({-5 + 1.5 * onda(t, LOOP):.2f}) scale(0.95)">{book}</g>'
+    s = bg_heaven() + f'<g transform="translate({V(620, 560, 680)},{500 + 12 * onda(t, LOOP):.0f}) rotate({V(-5, 4, -9) + 1.5 * onda(t, LOOP):.2f}) scale({V(0.95, 1.02, 0.9)})">{book}</g>'
     s += f'<text x="1350" y="420" font-family="Lora" font-weight="700" font-size="80" fill="#fff3cf" stroke="{OL}" stroke-width="3" text-anchor="middle">30 mañanas</text>'
     s += f'<text x="1350" y="510" font-family="Lora" font-weight="700" font-size="80" fill="#fff3cf" stroke="{OL}" stroke-width="3" text-anchor="middle">con los héroes</text>'
     pul = 1 + 0.04 * onda(t, LOOP / 2)
