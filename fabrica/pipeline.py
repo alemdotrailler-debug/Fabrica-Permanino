@@ -224,19 +224,28 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 # ---------------- 4. link público e info ----------------
 def link_publico(arq):
+    """Sites temporários (reserva). O caminho principal é a Release do GitHub (no workflow)."""
+    erros = []
     tentativas = [
-        ["curl", "-sS", "--fail", "-F", "reqtype=fileupload", "-F", "time=72h", "-F", f"fileToUpload=@{arq}",
-         "https://litterbox.catbox.moe/resources/internals/api.php"],
-        ["curl", "-sS", "--fail", "-F", "reqtype=fileupload", "-F", f"fileToUpload=@{arq}", "https://catbox.moe/user/api.php"],
+        ("litterbox", ["curl", "-sS", "--fail", "-m", "600", "-F", "reqtype=fileupload", "-F", "time=72h",
+                       "-F", f"fileToUpload=@{arq}", "https://litterbox.catbox.moe/resources/internals/api.php"], None),
+        ("uguu", ["curl", "-sS", "--fail", "-m", "600", "-F", f"files[]=@{arq}", "https://uguu.se/upload"], "json_uguu"),
+        ("catbox", ["curl", "-sS", "--fail", "-m", "600", "-F", "reqtype=fileupload", "-F", f"fileToUpload=@{arq}",
+                    "https://catbox.moe/user/api.php"], None),
     ]
-    for cmd in tentativas:
-        for _ in range(3):
-            r = subprocess.run(cmd, capture_output=True, text=True)
-            url = r.stdout.strip()
-            if r.returncode == 0 and url.startswith("https://"):
-                return url
-            time.sleep(10)
-    return None
+    for nome, cmd, modo in tentativas:
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        out = r.stdout.strip()
+        if r.returncode == 0:
+            if modo == "json_uguu":
+                try:
+                    out = json.loads(out)["files"][0]["url"]
+                except Exception:
+                    pass
+            if out.startswith("https://"):
+                return out, erros
+        erros.append(f"{nome}: código {r.returncode} {r.stderr.strip()[:150]} {out[:150]}")
+    return None, erros
 
 
 def mmss(x):
@@ -270,9 +279,10 @@ def main(pasta_video, enviar=True):
         "gerado_em": time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()),
     }
     if enviar:
-        url = link_publico(mp4)
-        info["video_url"] = url
-        log("link público (72h):", url)
+        url, erros = link_publico(mp4)
+        info["video_url_temporario"] = url
+        info["erros_envio"] = erros
+        log("link temporário:", url, erros)
     json.dump(info, open(os.path.join(saida, "info.json"), "w"), indent=1, ensure_ascii=False)
     log("ok")
 

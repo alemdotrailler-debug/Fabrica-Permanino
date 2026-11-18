@@ -6,6 +6,7 @@ on:
     paths:
       - "videos/*/roteiro.py"
       - "videos/*/cenas.py"
+      - "pedidos.txt"
   workflow_dispatch:
     inputs:
       video:
@@ -35,7 +36,10 @@ jobs:
             echo "lista=${{ github.event.inputs.video }}" >> "$GITHUB_OUTPUT"
           else
             L=$(git diff --name-only HEAD~1 HEAD -- videos | cut -d/ -f2 | sort -u | tr '\n' ' ')
-            echo "lista=$L" >> "$GITHUB_OUTPUT"
+            if git diff --name-only HEAD~1 HEAD | grep -qx pedidos.txt; then
+              L="$L $(grep -v '^#' pedidos.txt | tr '\n' ' ')"
+            fi
+            echo "lista=$(echo $L | tr ' ' '\n' | sort -u | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/setup-python@v5
@@ -51,6 +55,13 @@ jobs:
           pip install -r requirements.txt
           python -m playwright install --with-deps chromium
 
+      - name: Cache das narrações já feitas
+        uses: actions/cache@v4
+        with:
+          path: trabalho/*/wav
+          key: narracao-${{ hashFiles('videos/**') }}
+          restore-keys: narracao-
+
       - name: Cache dos modelos de voz
         uses: actions/cache@v4
         with:
@@ -62,6 +73,19 @@ jobs:
           for v in ${{ steps.quais.outputs.lista }}; do
             echo "=== $v ==="
             python -m fabrica.pipeline "videos/$v"
+          done
+
+      - name: Link público do vídeo (Release do GitHub)
+        if: ${{ !github.event.repository.private }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for v in ${{ steps.quais.outputs.lista }}; do
+            tag="video-$v-${{ github.run_number }}"
+            gh release create "$tag" "trabalho/$v/$v.mp4" --title "Vídeo: $v" --notes "Gerado pela fábrica. Link direto do MP4 em saida/$v/info.json."
+            url="https://github.com/${{ github.repository }}/releases/download/$tag/$v.mp4"
+            python -c "import json,sys; f='saida/$v/info.json'; d=json.load(open(f)); d['video_url']=sys.argv[1]; json.dump(d,open(f,'w'),indent=1,ensure_ascii=False)" "$url"
+            echo "link: $url"
           done
 
       - name: Guardar vídeo (backup de 14 dias)
