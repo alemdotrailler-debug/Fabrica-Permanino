@@ -80,10 +80,11 @@ def cartao(a, b, W, H):
             f'<text x="{W/2}" y="{H/2+100}" font-family="Lora" font-weight="700" font-size="96" fill="#f2d27a" text-anchor="middle">{b}</text></svg>')
 
 
-def renderizar(R, C, pasta, W, H):
+def renderizar(R, C, pasta, W, H, caminho_cenas=None):
     from playwright.sync_api import sync_playwright
     os.makedirs(os.path.join(pasta, "png"), exist_ok=True)
-    tudo = dict(C.scenes())
+    animado = getattr(C, "ANIMADO", False)
+    tudo = {} if animado else dict(C.scenes())
     for ci, (card, _) in enumerate(R.CH):
         if card:
             tudo[f"card{ci}"] = cartao(card[0], card[1], W, H)
@@ -101,7 +102,12 @@ def renderizar(R, C, pasta, W, H):
                 pg.wait_for_timeout(120)
                 pg.screenshot(path=os.path.join(pasta, f"thumb_{v}.jpg"), type="jpeg", quality=92)
         b.close()
-    log("cenas renderizadas:", len(tudo))
+    log("cenas/cartões renderizados:", len(tudo))
+    if animado:
+        from fabrica import animacao
+        usadas = sorted({l[2] for l in linhas(R.CH)})
+        animacao.render_loops(caminho_cenas, RAIZ, pasta, usadas, getattr(C, "LOOP", 3.0))
+        log("loops animados:", len(usadas))
 
 
 # ---------------- 3. montagem ----------------
@@ -116,11 +122,14 @@ MENOR = [[110, 130.8, 164.8], [87.3, 110, 130.8], [98, 116.5, 146.8], [82.4, 98,
 MAIOR = [[130.8, 164.8, 196], [98, 123.5, 146.8], [110, 130.8, 164.8], [87.3, 110, 130.8]]
 
 
+from fabrica.animacao import dividir as animacao_dividir, MODOS as ANIM_MODOS
+
+
 def ts(x):
     return f"{int(x//3600)}:{int(x%3600//60):02d}:{x%60:05.2f}"
 
 
-def montar(R, L, pasta, W, H, saida_mp4):
+def montar(R, L, pasta, W, H, saida_mp4, C=None):
     longo = W > H
     CARD, GAP, EXTRA, FIM_CAP = 2.6, 0.38, 0.35, 0.9
     audio, segs, subs, caps = [], [], [], []
@@ -192,24 +201,45 @@ Style: Sub,Inter Display,{fs},&H00FFFFFF,&H00FFFFFF,&H00120A06,&H64000000,-1,0,0
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     sd = os.path.join(pasta, "seg"); os.makedirs(sd, exist_ok=True)
+    animado = bool(C is not None and getattr(C, "ANIMADO", False))
+    pecas = []   # (fonte, a, b, modo)
+    k_cam = 0
+    for (png, a, b) in segs:
+        if "card" in os.path.basename(png) or not animado:
+            pecas.append((png, a, b, None))
+            continue
+        nome = os.path.splitext(os.path.basename(png))[0]
+        for i, (x0, x1) in enumerate(animacao_dividir(a, b, getattr(R, "CORTE_SEG", 5.0))):
+            modo = "geral" if i == 0 else ANIM_MODOS[k_cam % len(ANIM_MODOS)]
+            k_cam += 1
+            pecas.append((os.path.join(pasta, "loops", f"{nome}.mp4"), x0, x1, modo))
     jobs = []
-    for k, (png, a, b) in enumerate(segs):
+    for k, (src, a, b, modo) in enumerate(pecas):
         d = b - a
         ass = cab
         for (s0, s1, tx) in subs:
             if s1 > a and s0 < b:
                 ass += f"Dialogue: 0,{ts(max(0, s0-a))},{ts(min(d, s1-a+0.2))},Sub,,0,0,0,,{tx}\n"
         af = os.path.join(sd, f"{k:03d}.ass"); open(af, "w").write(ass)
-        if "card" in os.path.basename(png):
+        n = round(b * FPS) - round(a * FPS)
+        saida = os.path.join(sd, f"{k:03d}.mp4")
+        if "card" in os.path.basename(src):
             vf = f"scale={W}:{H},fade=t=in:st=0:d=0.4,fade=t=out:st={max(0,d-0.4):.3f}:d=0.4,format=yuv420p"
-        else:
+            entrada = ["-loop", "1", "-framerate", str(FPS), "-i", src]
+        elif modo is None:
             z = f"max(1.001,min(1.07,1+0.07*t/{d:.3f}))" if k % 2 == 0 else f"max(1.001,min(1.07,1.07-0.07*t/{d:.3f}))"
             vf = (f"scale=w='trunc({W}*{z}/2)*2':h='trunc({H}*{z}/2)*2':eval=frame,crop={W}:{H},"
                   f"subtitles={af},fade=t=in:st=0:d=0.35,fade=t=out:st={max(0,d-0.35):.3f}:d=0.35,format=yuv420p")
-        n = round(b * FPS) - round(a * FPS)
-        jobs.append(["ffmpeg", "-y", "-loglevel", "error", "-loop", "1", "-framerate", str(FPS), "-i", png,
-                     "-frames:v", str(n), "-vf", vf, "-r", str(FPS), "-c:v", "libx264", "-preset", "veryfast",
-                     "-crf", "21", "-threads", "1", os.path.join(sd, f"{k:03d}.mp4")])
+            entrada = ["-loop", "1", "-framerate", str(FPS), "-i", src]
+        else:
+            from fabrica import animacao
+            nome = os.path.splitext(os.path.basename(src))[0]
+            foco = getattr(C, "FOCO", {}).get(nome, (W / 2, H / 2))
+            vf = f"{animacao.filtro_camera(modo, d, foco, W, H)},subtitles={af},format=yuv420p"
+            entrada = ["-stream_loop", "-1", "-i", src]
+        jobs.append(["ffmpeg", "-y", "-loglevel", "error", *entrada, "-frames:v", str(n), "-vf", vf, "-r", str(FPS),
+                     "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-threads", "1", saida])
+    segs = pecas
     with ThreadPoolExecutor(os.cpu_count() or 2) as ex:
         list(ex.map(lambda c: subprocess.run(c, check=True), jobs))
     lista = os.path.join(sd, "lista.txt")
@@ -263,9 +293,9 @@ def main(pasta_video, enviar=True):
     L = linhas(R.CH)
     log(f"{R.SLUG}: {len(L)} frases")
     narrar(R, L, trabalho)
-    renderizar(R, C, trabalho, W, H)
+    renderizar(R, C, trabalho, W, H, os.path.join(pasta_video, "cenas.py"))
     mp4 = os.path.join(trabalho, f"{R.SLUG}.mp4")
-    total, caps = montar(R, L, trabalho, W, H, mp4)
+    total, caps = montar(R, L, trabalho, W, H, mp4, C)
     for v in getattr(C, "THUMBS", "AB"):
         t = os.path.join(trabalho, f"thumb_{v}.jpg")
         if os.path.exists(t):
