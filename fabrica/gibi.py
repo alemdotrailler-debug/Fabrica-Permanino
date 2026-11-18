@@ -220,11 +220,8 @@ def montar_gibi(R, C, L, pasta, saida_mp4, vertical=False, v0=0):
                 fim = bb - t0 - (0.5 if i == n - 1 else 0.0)
                 keys.append((max(fim, ini + 0.6), (r[0] + (8 if i % 2 else -8), r[1], r[2] * 0.97)))
             keys.append((d, cheia))
-            ex, ey, ew = _expr(keys, 0), _expr(keys, 1), _expr(keys, 2)
-            sw = f"trunc({PW}*{PW}/({ew})/2)*2"
-            sh = f"trunc({PH}*{PW}/({ew})/2)*2"
-            cam = (f"scale=w='{sw}':h='{sh}':eval=frame,"
-                   f"crop={PW}:{PH}:x='clip(({ex})*{PW}/({ew}),0,iw-{PW})':y='clip(({ey})*{PW}/({ew}),0,ih-{PH})'")
+            ex, ey, ew = (_expr(keys, i).replace("(t-", "(it-").replace("lt(t,", "lt(it,") for i in range(3))
+            cam = (f"zoompan=z='{PW}/({ew})':x='({ex})*{PS}':y='({ey})*{PS}':d=1:s={PW}x{PH}:fps={FPS}")
             ins = ["-loop", "1", "-framerate", str(FPS), "-t", f"{d + 0.2:.3f}", "-i", base]
             fc = []
             cur = "0:v"
@@ -234,7 +231,8 @@ def montar_gibi(R, C, L, pasta, saida_mp4, vertical=False, v0=0):
                 w -= w % 2; h -= h % 2
                 ins += (["-i", src] if "__fala" in src else ["-stream_loop", "-1", "-i", src])
                 ini = a - t0
-                fc.append(f"[{idx}:v]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setpts=PTS-STARTPTS+{ini:.3f}/TB[q{i}]")
+                pad = ",tpad=stop_mode=clone:stop_duration=600" if "__fala" in src else ""
+                fc.append(f"[{idx}:v]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}{pad},setpts=PTS-STARTPTS+{ini:.3f}/TB[q{i}]")
                 fc.append(f"[{cur}][q{i}]overlay={x}:{y}:enable='gte(t,{ini:.3f})':eof_action=pass[v{i}]")
                 cur = f"v{i}"; idx += 1
             ins += ["-loop", "1", "-i", mold]
