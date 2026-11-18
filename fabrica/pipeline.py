@@ -227,9 +227,9 @@ def link_publico(arq):
     """Sites temporários (reserva). O caminho principal é a Release do GitHub (no workflow)."""
     erros = []
     tentativas = [
+        ("uguu", ["curl", "-sS", "--fail", "-m", "600", "-F", f"files[]=@{arq}", "https://uguu.se/upload"], "json_uguu"),
         ("litterbox", ["curl", "-sS", "--fail", "-m", "600", "-F", "reqtype=fileupload", "-F", "time=72h",
                        "-F", f"fileToUpload=@{arq}", "https://litterbox.catbox.moe/resources/internals/api.php"], None),
-        ("uguu", ["curl", "-sS", "--fail", "-m", "600", "-F", f"files[]=@{arq}", "https://uguu.se/upload"], "json_uguu"),
         ("catbox", ["curl", "-sS", "--fail", "-m", "600", "-F", "reqtype=fileupload", "-F", f"fileToUpload=@{arq}",
                     "https://catbox.moe/user/api.php"], None),
     ]
