@@ -2,7 +2,7 @@
  "slug": "david",
  "formato": "longo",
  "duracao_seg": 920.1,
- "tamanho_bytes": 60160443,
+ "tamanho_bytes": 60162800,
  "titulo": "David: De Pastor a Rey en 8 Niveles (Y el Último Duele)",
  "descricao": "📖 30 días con los héroes de la fe: https://pay.kiwify.com/2YlTx14\n\nDavid empezó cuidando ovejas y terminó en el trono de Israel. En el camino venció a un gigante de casi 3 metros con una sola piedra, fingió estar loco para sobrevivir y perdonó dos veces al rey que quería matarlo.\n\nPero el hombre que no tembló frente a Goliat cayó desde una azotea. Vive su historia completa, nivel por nivel, y descubre por qué Dios lo llamó \"un hombre conforme a mi corazón\".\n\nCAPÍTULOS\n0:00 Introducción\n0:27 Nivel 1: Pastor de ovejas\n2:07 Nivel 2: Músico del rey\n3:00 Nivel 3: Matagigantes\n4:58 Nivel 4: Yerno del rey\n6:45 Nivel 5: Fugitivo\n8:21 Nivel 6: Rey\n9:40 Nivel 7: El rey que no fue a la guerra\n12:13 Nivel 8: Padre\n13:37 Final: Conforme al corazón de Dios\n\n📜 1 Samuel 16–31 · 2 Samuel 1–18 · 1 Reyes 2 · Salmo 51\n\n🙏 Escribe AMÉN si Dios te levantó después de una caída, y suscríbete a Crónicas del Pergamino.\n\n📖 El libro: https://pay.kiwify.com/2YlTx14\n\n#david #historiasbiblicas #bibliaanimada #davidygoliat #reydavid",
  "tags": [
@@ -27,6 +27,9 @@
  ],
  "comentario_fixado": "¿En qué nivel te habrías rendido tú? 👇 Si quieres vivir 30 mañanas con los héroes de la fe: https://pay.kiwify.com/2YlTx14",
  "capitulos": "0:00 Introducción\n0:27 Nivel 1: Pastor de ovejas\n2:07 Nivel 2: Músico del rey\n3:00 Nivel 3: Matagigantes\n4:58 Nivel 4: Yerno del rey\n6:45 Nivel 5: Fugitivo\n8:21 Nivel 6: Rey\n9:40 Nivel 7: El rey que no fue a la guerra\n12:13 Nivel 8: Padre\n13:37 Final: Conforme al corazón de Dios",
- "gerado_em": "2026-11-18 15:03 UTC",
- "video_url": null
+ "gerado_em": "2026-11-18 18:05 UTC",
+ "video_url_temporario": "https://h.uguu.se/EAvNVxvjZGSE.mp4",
+ "erros_envio": [
+  "litterbox: código 22 curl: (22) The requested URL returned error: 412 "
+ ]
 }
