@@ -195,7 +195,7 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Sub,Inter Display,{fs},&H00FFFFFF,&H00FFFFFF,&H00120A06,&H64000000,-1,0,0,0,100,100,0,0,1,{4.5 if longo else 6},1.5,2,{ml},{ml if longo else 150},{mv},1
+Style: Sub,Inter Display,{fs},{getattr(R, "COR_LEGENDA", "&H0032E1FF")},&H00FFFFFF,&H00120A06,&H64000000,-1,0,0,0,100,100,0,0,1,{4.5 if longo else 6},1.5,2,{ml},{ml if longo else 150},{mv},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
