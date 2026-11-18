@@ -5,12 +5,11 @@ on:
     branches: [main]
     paths:
       - "videos/*/roteiro.py"
-      - "videos/*/cenas.py"
       - "pedidos.txt"
   workflow_dispatch:
     inputs:
       video:
-        description: "Nome da pasta do vídeo em videos/ (ex.: david)"
+        description: "Pasta do vídeo em videos/ (ex.: david). Para só os Shorts: david:shorts"
         required: true
 
 permissions:
@@ -35,7 +34,7 @@ jobs:
           if [ -n "${{ github.event.inputs.video }}" ]; then
             echo "lista=${{ github.event.inputs.video }}" >> "$GITHUB_OUTPUT"
           else
-            L=$(git diff --name-only HEAD~1 HEAD -- videos | cut -d/ -f2 | sort -u | tr '\n' ' ')
+            L=$(git diff --name-only HEAD~1 HEAD -- 'videos/*/roteiro.py' | cut -d/ -f2 | sort -u | tr '\n' ' ')
             if git diff --name-only HEAD~1 HEAD | grep -qx pedidos.txt; then
               L="$L $(grep -v '^#' pedidos.txt | tr '\n' ' ')"
             fi
@@ -70,9 +69,14 @@ jobs:
 
       - name: Gerar
         run: |
-          for v in ${{ steps.quais.outputs.lista }}; do
-            echo "=== $v ==="
-            python -m fabrica.pipeline "videos/$v"
+          for item in ${{ steps.quais.outputs.lista }}; do
+            v="${item%%:*}"
+            echo "=== $item ==="
+            if [ "$item" != "$v" ] && [ "${item#*:}" = "shorts" ]; then
+              python -m fabrica.shorts "videos/$v"
+            else
+              python -m fabrica.pipeline "videos/$v"
+            fi
           done
 
       - name: Link público do vídeo (Release do GitHub)
@@ -81,6 +85,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           for v in ${{ steps.quais.outputs.lista }}; do
+            [ -f "trabalho/$v/$v.mp4" ] || continue
             tag="video-$v-${{ github.run_number }}"
             gh release create "$tag" "trabalho/$v/$v.mp4" --title "Vídeo: $v" --notes "Gerado pela fábrica. Link direto do MP4 em saida/$v/info.json."
             url="https://github.com/${{ github.repository }}/releases/download/$tag/$v.mp4"
@@ -92,7 +97,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: videos
-          path: trabalho/*/*.mp4
+          path: |
+            trabalho/*/*.mp4
+            trabalho/*/short_*/*.mp4
           retention-days: 14
 
       - name: Salvar link e thumbnails no repositório

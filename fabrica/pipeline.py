@@ -170,7 +170,7 @@ def linha_do_tempo(R, L, pasta, longo):
     return audio, segs, subs, caps, st["t"]
 
 
-def plano_cortes(R, C, segs, pasta):
+def plano_cortes(R, C, segs, pasta, v0=0):
     """Divide cada cena em cortes de ~CORTE_SEG s. Cada corte ganha uma variante única (desenho diferente)."""
     animado = bool(C is not None and getattr(C, "ANIMADO", False))
     pecas, k_cam, cont = [], 0, {}
@@ -180,14 +180,14 @@ def plano_cortes(R, C, segs, pasta):
             continue
         nome = os.path.splitext(os.path.basename(png))[0]
         for i, (x0, x1) in enumerate(animacao_dividir(a, b, getattr(R, "CORTE_SEG", 5.0))):
-            v = cont.get(nome, 0); cont[nome] = v + 1
+            v = cont.get(nome, v0); cont[nome] = v + 1
             modo = "geral" if i == 0 else ANIM_MODOS[k_cam % len(ANIM_MODOS)]
             k_cam += 1
             pecas.append((os.path.join(pasta, "loops", f"{nome}__{v}.mp4"), x0, x1, modo, nome, v))
     return pecas
 
 
-def montar(R, L, pasta, W, H, saida_mp4, C=None):
+def montar(R, L, pasta, W, H, saida_mp4, C=None, v0=0):
     longo = W > H
     audio, segs, subs, caps, total = linha_do_tempo(R, L, pasta, longo)
     voz = np.concatenate(audio)
@@ -223,7 +223,7 @@ Style: Sub,Inter Display,{fs},{getattr(R, "COR_LEGENDA", "&H0032E1FF")},&H00FFFF
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     sd = os.path.join(pasta, "seg"); os.makedirs(sd, exist_ok=True)
-    pecas = plano_cortes(R, C, segs, pasta)
+    pecas = plano_cortes(R, C, segs, pasta, v0)
     jobs = []
     for k, (src, a, b, modo, nome_cena, var) in enumerate(pecas):
         d = b - a
@@ -245,7 +245,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         else:
             from fabrica import animacao
             foco = getattr(C, "FOCO", {}).get(nome_cena, (W / 2, H / 2))
-            vf = f"{animacao.filtro_camera(modo, d, foco, W, H)},subtitles={af},format=yuv420p"
+            cam = animacao.filtro_camera(modo, d, foco, W, H) if W > H else animacao.filtro_camera_vertical(modo, d, foco, W, H)
+            vf = f"{cam},subtitles={af},format=yuv420p"
             entrada = ["-stream_loop", "-1", "-i", src]
         jobs.append(["ffmpeg", "-y", "-loglevel", "error", *entrada, "-frames:v", str(n), "-vf", vf, "-r", str(FPS),
                      "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-threads", "1", saida])

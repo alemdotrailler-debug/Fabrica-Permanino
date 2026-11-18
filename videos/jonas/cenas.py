@@ -417,7 +417,7 @@ def j4b(t):
     f = t / LOOP
     y = 200 + 700 * f
     caindo, _ = person(**{**JONAS, "eyes": "closed", "mouth": "shout", "brows": "sad", "arms": ("up", "up")})
-    s += f'<g transform="translate({V(980, 700, 1250)},{y:.0f}) rotate({V(180, -160, 220) * f:.0f}) scale({V(0.45, 0.55, 0.4)})">{caindo}</g>'
+    s += f'<g transform="translate({V(980, 900, 1060)},{y:.0f}) rotate({V(180, -160, 220) * f:.0f}) scale({V(0.45, 0.55, 0.4)})">{caindo}</g>'
     s += mar_bravo(t, 760)
     if f > 0.75:
         k = (f - 0.75) / 0.25

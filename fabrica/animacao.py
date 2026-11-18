@@ -99,3 +99,24 @@ def dividir(a, b, corte):
     n = max(1, int(round(d / corte)))
     passo = d / n
     return [(a + i * passo, a + (i + 1) * passo) for i in range(n)]
+
+
+def filtro_camera_vertical(modo, d, foco, W=1080, H=1920):
+    """Recorte vertical (Shorts) a partir do loop horizontal 2880x1620, centrado no foco."""
+    fx, fy = foco
+    k = {"geral": 1.0, "close": 1.3}.get(modo, 1.12)
+    sh = int(H * k) // 2 * 2
+    sw = int(sh * 16 / 9) // 2 * 2
+    f = sw / 1920
+    cx = min(max(fx * f - W / 2, 0), sw - W)
+    cy = min(max(fy * f - H / 2, 0), sh - H)
+    if modo == "geral":
+        z = f"max(1.001,min(1.05,1+0.05*t/{d:.3f}))"
+        return (f"scale=w='trunc({sw}*{z}/2)*2':h='trunc({sh}*{z}/2)*2':eval=frame,"
+                f"crop={W}:{H}:x='clip({cx:.0f}*{z},0,iw-{W})':y='(ih-{H})/2'")
+    if modo == "close":
+        return f"scale={sw}:{sh},crop={W}:{H}:x='clip({cx:.0f}+20*sin(t*0.6),0,{sw-W})':y='clip({cy:.0f}-10*t/{d:.3f},0,{sh-H})'"
+    folga = 260
+    x0 = min(max(cx - folga / 2, 0), sw - W - folga)
+    x = f"{x0:.0f}+{folga}*t/{d:.3f}" if modo == "pan_d" else f"{x0 + folga:.0f}-{folga}*t/{d:.3f}"
+    return f"scale={sw}:{sh},crop={W}:{H}:x='clip({x},0,{sw-W})':y={cy:.0f}"
