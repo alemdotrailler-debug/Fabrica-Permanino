@@ -1,0 +1,81 @@
+name: Gerar vídeo
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "videos/*/roteiro.py"
+      - "videos/*/cenas.py"
+  workflow_dispatch:
+    inputs:
+      video:
+        description: "Nome da pasta do vídeo em videos/ (ex.: david)"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gerar-video
+  cancel-in-progress: false
+
+jobs:
+  gerar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Descobrir quais vídeos gerar
+        id: quais
+        run: |
+          if [ -n "${{ github.event.inputs.video }}" ]; then
+            echo "lista=${{ github.event.inputs.video }}" >> "$GITHUB_OUTPUT"
+          else
+            L=$(git diff --name-only HEAD~1 HEAD -- videos | cut -d/ -f2 | sort -u | tr '\n' ' ')
+            echo "lista=$L" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar programas
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fontconfig
+          mkdir -p ~/.local/share/fonts && cp fonts/* ~/.local/share/fonts/ && fc-cache -f
+          pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Cache dos modelos de voz
+        uses: actions/cache@v4
+        with:
+          path: modelos
+          key: kokoro-v1.0
+
+      - name: Gerar
+        run: |
+          for v in ${{ steps.quais.outputs.lista }}; do
+            echo "=== $v ==="
+            python -m fabrica.pipeline "videos/$v"
+          done
+
+      - name: Guardar vídeo (backup de 14 dias)
+        uses: actions/upload-artifact@v4
+        with:
+          name: videos
+          path: trabalho/*/*.mp4
+          retention-days: 14
+
+      - name: Salvar link e thumbnails no repositório
+        run: |
+          git config user.name "fabrica-bot"
+          git config user.email "fabrica-bot@users.noreply.github.com"
+          git add saida
+          git commit -m "Vídeo pronto: ${{ steps.quais.outputs.lista }}" || echo "nada novo"
+          git pull --rebase origin main
+          git push
