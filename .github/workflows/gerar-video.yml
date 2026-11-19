@@ -2,7 +2,7 @@ name: Gerar vídeo (Destino Paralelo)
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'destino-teste*']
     paths:
       - "videos/*/roteiro.py"
       - "pedidos.txt"
