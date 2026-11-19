@@ -1,0 +1,14 @@
+id 8a7e3cd1-71e2-42b1-9240-d18aea38e46e
+1s {'finished': 0, 'processing': 0, 'restarted': 0, 'waiting': 1, 'done': False, 'faulted': False, 'wait_time': 0, 'queue_position': 0, 'kudos': 1.0, 'is_possible': True, 'eligible_workers': 6, 'eligible_worker_threads': 6, 'might_stall': False}
+12s {'finished': 0, 'processing': 0, 'restarted': 0, 'waiting': 1, 'done': False, 'faulted': False, 'wait_time': 580, 'queue_position': 401, 'kudos': 1.0, 'is_possible': True, 'eligible_workers': 6, 'eligible_worker_threads': 6, 'might_stall': False}
+23s {'finished': 0, 'processing': 0, 'restarted': 0, 'waiting': 1, 'done': False, 'faulted': False, 'wait_time': 575, 'queue_position': 397, 'kudos': 1.0, 'is_possible': True, 'eligible_workers': 6, 'eligible_worker_threads': 6, 'might_stall': False}
+33s {'finished': 0, 'processing': 0, 'restarted': 0, 'waiting': 1, 'done': False, 'faulted': False, 'wait_time': 560, 'queue_position': 383, 'kudos': 1.0, 'is_possible': True, 'eligible_workers': 6, 'eligible_worker_threads': 6, 'might_stall': False}
+44s {'finished': 0, 'processing': 0, 'restarted': 0, 'waiting': 1, 'done': False, 'faulted': False, 'wait_time': 551, 'queue_position': 373, 'kudos': 1.0, 'is_possible': True, 'eligible_workers': 6, 'eligible_worker_threads': 6, 'might_stall': False}
+54s {'finished': 0, 'processing': 0, 'restarted': 0, 'waiting': 1, 'done': False, 'faulted': False, 'wait_time': 531, 'queue_position': 357, 'kudos': 1.0, 'is_possible': True, 'eligible_workers': 6, 'eligible_worker_threads': 6, 'might_stall': False}
+65s {'finished': 0, 'processing': 0, 'restarted': 0, 'waiting': 1, 'done': False, 'faulted': False, 'wait_time': 519, 'queue_position': 347, 'kudos': 1.0, 'is_possible': True, 'eligible_workers': 6, 'eligible_worker_threads': 6, 'might_stall': False}
+76s {'finished': 0, 'processing': 0, 'restarted': 0, 'waiting': 1, 'done': False, 'faulted': False, 'wait_time': 502, 'queue_position': 332, 'kudos': 1.0, 'is_possible': True, 'eligible_workers': 6, 'eligible_worker_threads': 6, 'might_stall': False}
+86s {'finished': 0, 'processing': 0, 'restarted': 0, 'waiting': 1, 'done': False, 'faulted': False, 'wait_time': 489, 'queue_position': 316, 'kudos': 1.0, 'is_possible': True, 'eligible_workers': 6, 'eligible_worker_threads': 6, 'might_stall': False}
+97s {'finished': 0, 'processing': 1, 'restarted': 0, 'waiting': 0, 'done': False, 'faulted': False, 'wait_time': 6, 'queue_position': 0, 'kudos': 1.0, 'is_possible': True, 'eligible_workers': 6, 'eligible_worker_threads': 6, 'might_stall': False}
+108s {'finished': 1, 'processing': 0, 'restarted': 0, 'waiting': 0, 'done': True, 'faulted': False, 'wait_time': 0, 'queue_position': 0, 'kudos': 10.0, 'is_possible': True, 'eligible_workers': 6, 'eligible_worker_threads': 6, 'might_stall': False}
+img https://a223539ccf6caa2d76459c9727d276e6.r2.cloudflarestorage.com/stable-horde/f
+OK em 109s
