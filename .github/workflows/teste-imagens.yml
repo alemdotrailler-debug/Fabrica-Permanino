@@ -1,0 +1,44 @@
+name: teste-imagens
+on:
+  push:
+    branches: [teste-imagens]
+permissions:
+  contents: write
+jobs:
+  pollinations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 teste/pollinations.py
+        continue-on-error: true
+      - name: salvar
+        run: |
+          git config user.name bot; git config user.email bot@x
+          git add teste; git commit -m "teste pollinations" || exit 0
+          for i in 1 2 3 4 5; do git pull --rebase -X theirs origin teste-imagens && git push origin HEAD:teste-imagens && break; sleep 5; done
+  horde:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 teste/horde.py
+        continue-on-error: true
+      - name: salvar
+        run: |
+          git config user.name bot; git config user.email bot@x
+          git add teste; git commit -m "teste horde" || exit 0
+          for i in 1 2 3 4 5; do git pull --rebase -X theirs origin teste-imagens && git push origin HEAD:teste-imagens && break; sleep 5; done
+  local:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install diffusers transformers accelerate
+      - run: python3 teste/local.py
+        continue-on-error: true
+      - name: salvar
+        run: |
+          git config user.name bot; git config user.email bot@x
+          git add teste; git commit -m "teste local" || exit 0
+          for i in 1 2 3 4 5; do git pull --rebase -X theirs origin teste-imagens && git push origin HEAD:teste-imagens && break; sleep 5; done
