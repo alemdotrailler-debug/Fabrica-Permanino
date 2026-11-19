@@ -1,0 +1,14 @@
+cpus 4
+[anything5] carregou em 23s
+[anything5] img 0: 81s
+[anything5] img 1: 81s
+[anything5] img 2: 82s
+[anything5taesd] carregou em 7s
+[anything5taesd] img 0: 61s
+[anything5taesd] img 1: 60s
+[anything5taesd] img 2: 61s
+[anything3] ERRO GatedRepoError('401 Client Error. (Request ID: Root=1-6afec693-5f6934cd017f507c231f1c3b;0d7878c2-3275-4808-9f56-fbc197f35919)\n\nCannot access gated repo for url https://huggingface.co/Linaqruf/anything-v3.0/resolve/8323d54dcf89c90c39995b04ae43166520e8992a/model_index.json.\nAccess to model Linaqruf
+[sdturbo] carregou em 15s
+[sdturbo] img 0: 36s
+[sdturbo] img 1: 36s
+[sdturbo] img 2: 36s
