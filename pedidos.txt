@@ -1,2 +1,2 @@
-# Pedidos de vídeo: uma linha por pedido. "titan" = vídeo longo + miniaturas; "titan:shorts" = os Shorts.
-# Para gerar, edite este arquivo e salve (commit) — a fábrica roda sozinha.
+# Pedidos
+sukuna_dedo:miniaturas
