@@ -8,6 +8,15 @@ from multiprocessing import Pool
 
 ESCALA = 1.5            # loops renderizados em 2880x1620 para o close ficar nítido
 FPS_LOOP = 24
+FPS_ENV = 24            # taxa dos envelopes de voz (boca) — fixa, vem do pipeline
+
+
+def configurar(template):
+    """Gibi: quadrinhos animados "de dois em dois" (12 quadros/s) em 1920x1080 — cada painel é pequeno
+    na página, então não precisa de 2880x1620. Fica ~4x mais rápido de renderizar."""
+    global ESCALA, FPS_LOOP
+    if template == "gibi":
+        ESCALA, FPS_LOOP = 1.0, 12
 
 
 # ---------- utilidades para animar personagens ----------
@@ -51,9 +60,9 @@ def _render_lote(args):
                 C.VAR["v"] = var
             for i in range(n):
                 pg.set_content(f'<html><body style="margin:0;background:#000">{f(i / FPS_LOOP)}</body></html>')
-                pg.screenshot(path=os.path.join(d, f"{i:03d}.jpg"), type="jpeg", quality=90)
+                pg.screenshot(path=os.path.join(d, f"{i:03d}.jpg"), type="jpeg", quality=85)
             subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(FPS_LOOP), "-i", os.path.join(d, "%03d.jpg"),
-                            "-c:v", "libx264", "-preset", "fast", "-crf", "17", "-pix_fmt", "yuv420p", mp4], check=True)
+                            "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-pix_fmt", "yuv420p", "-r", "24", mp4], check=True)
             for x in os.listdir(d):
                 os.remove(os.path.join(d, x))
             os.rmdir(d)
@@ -146,13 +155,13 @@ def _render_falas_lote(args):
                 fala, boca = None, 0.0
                 for (f0, f1, quem, env) in envs:
                     if f0 <= tg < f1:
-                        fala = quem; boca = env[min(len(env) - 1, int((tg - f0) * FPS_LOOP))]
+                        fala = quem; boca = env[min(len(env) - 1, int((tg - f0) * FPS_ENV))]
                 if hasattr(C, "VAR"):
                     C.VAR["fala"], C.VAR["boca"] = fala, boca
                 pg.set_content(f'<html><body style="margin:0;background:#000">{S[nome](tg % loop)}</body></html>')
-                pg.screenshot(path=os.path.join(d, f"{i:04d}.jpg"), type="jpeg", quality=90)
+                pg.screenshot(path=os.path.join(d, f"{i:04d}.jpg"), type="jpeg", quality=85)
             subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(FPS_LOOP), "-i", os.path.join(d, "%04d.jpg"),
-                            "-c:v", "libx264", "-preset", "fast", "-crf", "17", "-pix_fmt", "yuv420p", mp4], check=True)
+                            "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-pix_fmt", "yuv420p", "-r", "24", mp4], check=True)
             for x in os.listdir(d):
                 os.remove(os.path.join(d, x))
             os.rmdir(d)

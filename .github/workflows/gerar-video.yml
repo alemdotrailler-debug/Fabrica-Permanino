@@ -20,26 +20,41 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  gerar:
+  descobrir:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    outputs:
+      lista: ${{ steps.quais.outputs.lista }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
-
       - name: Descobrir quais vídeos gerar
         id: quais
         run: |
           if [ -n "${{ github.event.inputs.video }}" ]; then
-            echo "lista=${{ github.event.inputs.video }}" >> "$GITHUB_OUTPUT"
+            L="${{ github.event.inputs.video }}"
           else
             L=$(git diff --name-only HEAD~1 HEAD -- 'videos/*/roteiro.py' | cut -d/ -f2 | sort -u | tr '\n' ' ')
             if git diff --name-only HEAD~1 HEAD | grep -qx pedidos.txt; then
               L="$L $(grep -v '^#' pedidos.txt | tr '\n' ' ')"
             fi
-            echo "lista=$(echo $L | tr ' ' '\n' | sort -u | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
           fi
+          # lista em JSON para a matriz: cada pedido roda em um computador próprio, ao mesmo tempo
+          J=$(echo $L | tr ' ' '\n' | grep -v '^$' | sort -u | python3 -c "import sys,json; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))")
+          echo "lista=$J" >> "$GITHUB_OUTPUT"
+          echo "pedidos: $J"
+
+  gerar:
+    needs: descobrir
+    if: ${{ needs.descobrir.outputs.lista != '[]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        item: ${{ fromJSON(needs.descobrir.outputs.lista) }}
+    steps:
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
@@ -58,7 +73,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: trabalho/*/wav
-          key: narracao-${{ hashFiles('videos/**') }}
+          key: narracao-${{ hashFiles('videos/**') }}-${{ matrix.item }}
           restore-keys: narracao-
 
       - name: Cache dos modelos de voz
@@ -69,44 +84,46 @@ jobs:
 
       - name: Gerar
         run: |
-          for item in ${{ steps.quais.outputs.lista }}; do
-            v="${item%%:*}"
-            echo "=== $item ==="
-            if [ "$item" != "$v" ] && [ "${item#*:}" = "shorts" ]; then
-              python -m fabrica.shorts "videos/$v"
-            else
-              python -m fabrica.pipeline "videos/$v"
-            fi
-          done
+          nproc
+          item="${{ matrix.item }}"
+          v="${item%%:*}"
+          echo "=== $item ==="
+          if [ "$item" != "$v" ] && [ "${item#*:}" = "shorts" ]; then
+            python -m fabrica.shorts "videos/$v"
+          else
+            python -m fabrica.pipeline "videos/$v"
+          fi
 
       - name: Link público do vídeo (Release do GitHub)
         if: ${{ !github.event.repository.private }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for v in ${{ steps.quais.outputs.lista }}; do
-            [ -f "trabalho/$v/$v.mp4" ] || continue
-            tag="video-$v-${{ github.run_number }}"
-            gh release create "$tag" "trabalho/$v/$v.mp4" --title "Vídeo: $v" --notes "Gerado pela fábrica. Link direto do MP4 em saida/$v/info.json."
+          item="${{ matrix.item }}"; v="${item%%:*}"
+          tag="video-$v-${{ github.run_number }}-${{ strategy.job-index }}"
+          if [ "$item" != "$v" ]; then
+            ls trabalho/$v/short_*/*_short_*.mp4 | while read f; do
+              n=$(basename "$f" .mp4)
+              gh release create "$tag-$n" "$f" --title "$n" --notes "Short gerado pela fábrica."
+              url="https://github.com/${{ github.repository }}/releases/download/$tag-$n/$n.mp4"
+              echo "link: $url"
+              sid="${n##*_}"
+              python -c "import json,sys; f='saida/$v/short_$sid.json'; d=json.load(open(f)); d['video_url']=sys.argv[1]; json.dump(d,open(f,'w'),indent=1,ensure_ascii=False)" "$url"
+            done
+          else
+            gh release create "$tag" "trabalho/$v/$v.mp4" --title "Vídeo: $v" --notes "Gerado pela fábrica."
             url="https://github.com/${{ github.repository }}/releases/download/$tag/$v.mp4"
             python -c "import json,sys; f='saida/$v/info.json'; d=json.load(open(f)); d['video_url']=sys.argv[1]; json.dump(d,open(f,'w'),indent=1,ensure_ascii=False)" "$url"
             echo "link: $url"
-          done
-
-      - name: Guardar vídeo (backup de 14 dias)
-        uses: actions/upload-artifact@v4
-        with:
-          name: videos
-          path: |
-            trabalho/*/*.mp4
-            trabalho/*/short_*/*.mp4
-          retention-days: 14
+          fi
 
       - name: Salvar link e thumbnails no repositório
         run: |
           git config user.name "fabrica-bot"
           git config user.email "fabrica-bot@users.noreply.github.com"
           git add saida
-          git commit -m "Vídeo pronto: ${{ steps.quais.outputs.lista }}" || echo "nada novo"
-          git pull --rebase -X theirs origin main
-          git push
+          git commit -m "Vídeo pronto: ${{ matrix.item }}" || { echo "nada novo"; exit 0; }
+          for i in 1 2 3 4 5; do
+            git pull --rebase -X theirs origin main && git push && break
+            sleep $((RANDOM % 10 + 3))
+          done

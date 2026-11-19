@@ -18,8 +18,11 @@ FPS = 24
 URL_MODELOS = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/"
 
 
+_T0 = time.time()
+
+
 def log(*a):
-    print("[fábrica]", *a, flush=True)
+    print(f"[fábrica +{(time.time() - _T0) / 60:.1f}min]", *a, flush=True)
 
 
 def carregar(caminho, nome):
@@ -124,6 +127,7 @@ def renderizar(R, C, pasta, W, H, caminho_cenas=None):
         _, segs, _, _, _, falas, _ = linha_do_tempo(R, linhas(R.CH), pasta, W > H)
         pl = plano_cortes(R, C, segs, pasta, 0, falas)
         pedidos = [(p[4], p[5]) for p in pl if p[4] is not None and "__fala" not in p[0]]
+        animacao.configurar(getattr(R, "TEMPLATE", "niveles"))
         animacao.render_loops(caminho_cenas, RAIZ, pasta, pedidos, getattr(C, "LOOP", 3.0))
         diretos = [(p[4], p[5], p[1], p[2], p[0]) for p in pl if p[4] is not None and "__fala" in p[0]]
         if diretos:
