@@ -1,4 +1,0 @@
-carregou em 29s
-img 0: 15s
-img 1: 15s
-img 2: 15s

@@ -1,8 +1,0 @@
-flux #0: 200 61113B tentativas=1 5s
-flux #1: 200 61060B tentativas=4 51s
-flux #2: <HTTPError 503: 'Service Unavailable'> 0B tentativas=4 64s
-flux #3: 200 58186B tentativas=3 35s
-turbo #0: 200 61113B tentativas=4 47s
-turbo #1: 200 61060B tentativas=4 47s
-turbo #2: 200 47042B tentativas=4 51s
-turbo #3: 200 58186B tentativas=4 47s
