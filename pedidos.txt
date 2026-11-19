@@ -1,4 +1,4 @@
 # Um pedido por linha. "nome" gera o vídeo longo; "nome:shorts" gera só os Shorts.
-elias
-elias:shorts
-# v3 (teste de velocidade do Gibi)
+gedeon
+gedeon:shorts
+# v1 (Gedeón, 19/11)
